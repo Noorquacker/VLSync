@@ -26,6 +26,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 			self.roomList.addItem(room['name'])
 
 	def roomSelected(self, room):
+		print(type(room))
 		roomID = False
 		for i in self.rooms:
 			if room.text() == i['name']:
