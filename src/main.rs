@@ -14,7 +14,8 @@ fn main() {
     println!("Displaying Qt GUI...");
     QApplication::init(|_| unsafe {
 // 		let _roomchooser = RoomChooser::new();
-		let _roomchooser = roomchooser::RoomChooser::new();
+// 		let _roomchooser = roomchooser::RoomChooser::new();
+		let _player = player::Player::new();
 		QApplication::exec()
     });
 }

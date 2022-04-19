@@ -1,5 +1,3 @@
-#![windows_subsystem = "windows"]
-
 use cpp_core::{Ptr, StaticUpcast};
 use qt_core::{slot, QBox, SlotNoArgs, qs, QObject};
 use qt_widgets::{QWidget, QVBoxLayout, QListWidget, QLineEdit, QPushButton, QListWidgetItem, SlotOfQListWidgetItem};
@@ -55,7 +53,8 @@ impl RoomChooser {
 	
 	#[slot(SlotNoArgs)]
 	unsafe fn on_create_room(self: &Rc<Self>) {
-	
+		let str: String = self.username_box.text().to_std_string();
+		println!("Creating room {}", str);
 	}
 	
 	#[slot(SlotOfQListWidgetItem)]
