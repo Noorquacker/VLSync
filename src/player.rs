@@ -1,5 +1,5 @@
 use cpp_core::{Ptr, StaticUpcast};
-use qt_core::{slot, QBox, SlotNoArgs, qs, QObject, QTimer, QString};
+use qt_core::{slot, QBox, SlotNoArgs, SlotOfInt, QObject, QTimer, QString};
 use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout};
 use qt_gui::{QPalette, QColor, q_palette};
 // use crate::q_palette::ColorRole;
@@ -45,7 +45,6 @@ impl Player {
 			position_slider.set_tool_tip(&QString::from_std_str("Position")); // eugh
 			position_slider.set_maximum(1000);
 			position_slider.set_tracking(false);
-			// TODO connect FREAKING_VLSYNC.py:156 and 157
 			
 			let h_box = QHBoxLayout::new_0a();
 			
@@ -90,8 +89,6 @@ impl Player {
 			let timer = QTimer::new_0a();
 			timer.set_interval(200);
 
-			// TODO connect literally everything
-
 			widget.show();
 
 			let this = Rc::new(Self {
@@ -116,6 +113,70 @@ impl Player {
 	}
 
 	unsafe fn init(self: &Rc<Self>) {
+		self.position_slider.slider_moved().connect(&self.slot_mark_position());
+		self.position_slider.slider_released().connect(&self.slot_set_position());
 
+		self.force_sync.clicked().connect(&self.slot_hard_sync());
+		self.play.clicked().connect(&self.slot_play_update());
+		self.stop.clicked().connect(&self.slot_stop());
+		self.load.clicked().connect(&self.slot_open_file());
+		self.exit.clicked().connect(&self.slot_close_all());
+
+		self.volume_slider.value_changed().connect(&self.slot_set_volume());
+
+		self.timer.timeout().connect(&self.slot_update_ui());
+
+	}
+
+	#[slot(SlotOfInt)]
+	unsafe fn mark_position(self: &Rc<Self>, pos: i32) {
+		// TODO idfk
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn set_position(self: &Rc<Self>) {
+		// TODO ACTUAL NETWORKING CRAP
+	}
+
+	// Force a sync
+	#[slot(SlotNoArgs)]
+	unsafe fn hard_sync(self: &Rc<Self>) {
+		self.sync(true);
+	}
+
+	fn sync(self: &Rc<Self>, force_sync: bool) {
+		// TODO Player.sync
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn play_update(self: &Rc<Self>) {
+		// TODO PlayPause_andupdateserver
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn stop(self: &Rc<Self>) {
+		// this should be easy whenever I do it
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn open_file(self: &Rc<Self>) {
+
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn close_all(self: &Rc<Self>) {
+	}
+
+	#[slot(SlotOfInt)]
+	unsafe fn set_volume(self: &Rc<Self>, vol: i32) {
+
+	}
+
+	#[slot(SlotNoArgs)]
+	unsafe fn update_ui(self: &Rc<Self>) {
+		if !self.position_slider.is_slider_down() {
+			self.position_slider.set_value(0); // TODO convert from python `self.mediaplayer.get_position() * 1000`
+		}
+		// TODO AAAAAA MEDIA PLAYER STUFF
 	}
 }

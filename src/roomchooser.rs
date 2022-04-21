@@ -1,5 +1,5 @@
 use cpp_core::{Ptr, StaticUpcast};
-use qt_core::{slot, QBox, SlotNoArgs, qs, QObject};
+use qt_core::{slot, QBox, SlotNoArgs, qs, QObject, QString};
 use qt_widgets::{QWidget, QVBoxLayout, QListWidget, QLineEdit, QPushButton, QListWidgetItem, SlotOfQListWidgetItem};
 use std::rc::Rc;
 
@@ -32,6 +32,8 @@ impl RoomChooser {
 			let create_room_button = QPushButton::new();
 			create_room_button.set_text(&qs("Create Room"));
 			hthing.add_widget(&create_room_button);
+
+			room_list.add_item_q_string(&QString::from_std_str("bruh"));
 			
 			widget.show();
 			
@@ -47,6 +49,10 @@ impl RoomChooser {
 	}
 	
 	unsafe fn init(self: &Rc<Self>) {
+
+		// wait why does it insert "slot_" behind my function names
+		// this is as confusing as python decorators
+
 		self.create_room_button.clicked().connect(&self.slot_on_create_room());
 		self.room_list.item_double_clicked().connect(&self.slot_on_join_room());
 	}
@@ -54,11 +60,12 @@ impl RoomChooser {
 	#[slot(SlotNoArgs)]
 	unsafe fn on_create_room(self: &Rc<Self>) {
 		let str: String = self.username_box.text().to_std_string();
-		println!("Creating room {}", str);
+		println!("Creating and joining room {}", str);
 	}
 	
 	#[slot(SlotOfQListWidgetItem)]
-	unsafe fn on_join_room(self: &Rc<Self>, _room: Ptr<QListWidgetItem>) {
-	
+	unsafe fn on_join_room(self: &Rc<Self>, room: Ptr<QListWidgetItem>) {
+		let r: String = room.text().to_std_string();
+		println!("Joining room {}", r);
 	}
 }

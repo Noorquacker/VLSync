@@ -2,7 +2,7 @@
 
 use rand::Rng;
 extern crate base64;
-use qt_widgets::{QApplication};
+use qt_widgets::QApplication;
 
 mod roomchooser;
 mod player;
