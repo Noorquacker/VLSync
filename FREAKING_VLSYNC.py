@@ -1,12 +1,14 @@
 #!/usr/bin/python3
-import requests, base64, vlc, sys, time, os.path, random
+import requests, base64, vlc, sys, time, os.path
 from PyQt5 import QtGui, QtCore
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QThread, QObject, pyqtSignal
-from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QApplication
+
 
 class RoomChooser(QtWidgets.QMainWindow):
 	rooms = []
+
 	def __init__(self, clientID, master=None):
 		QtWidgets.QMainWindow.__init__(self, master)
 		self.setWindowTitle('VLSync - Choose a room')
@@ -39,7 +41,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 			QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, 'Bruh moment', 'Enter a username, dangit').exec()
 			return
 		print(f'Joining room ID {i["id"]}')
-		a = requests.post('https://mc.nqind.com/vlsync/join.php', json={'client':self.clientID, 'id':roomID, 'username':username})
+		a = requests.post('https://mc.nqind.com/vlsync/join.php', json={'client': self.clientID, 'id': roomID, 'username': username})
 		if a.json()['response'] == 200:
 			self.close()
 			player = Player(self.clientID, {'id': roomID, 'users': a.json()['users']})
@@ -53,7 +55,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 		if not username:
 			QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, 'Bruh moment', 'Enter a username, dangit').exec()
 			return
-		a = requests.post('https://mc.nqind.com/vlsync/createRoom.php', json={'client':self.clientID, 'username':username})
+		a = requests.post('https://mc.nqind.com/vlsync/createRoom.php', json={'client': self.clientID, 'username': username})
 		print(a.text)
 		self.roomID = a.json()['id']
 		print(f'Joining CREATED room ID {i["id"]}')
@@ -77,8 +79,10 @@ class RoomChooser(QtWidgets.QMainWindow):
 		self.widget.setLayout(self.hthing)
 		self.roomList.itemDoubleClicked.connect(self.roomSelected)
 
+
 class Player(QtWidgets.QMainWindow):
 	endSync = pyqtSignal()
+
 	def __init__(self, clientID, roomInfo, master=None):
 		QtWidgets.QMainWindow.__init__(self, master)
 		self.setWindowTitle('VLSync thing please help')
@@ -110,7 +114,7 @@ class Player(QtWidgets.QMainWindow):
 			self.mediaplayer.play()
 		if abs(time_diff) > 2500 or not self.isPaused == a['paused'] or force_sync:
 			self.timeshift(timecode, a['paused'])
-	
+
 	def timeshift(self, timecode, paused):
 		targetTime = int(timecode * 1000)
 		print(f'[SYNC] Shifting to {targetTime}')
@@ -118,7 +122,7 @@ class Player(QtWidgets.QMainWindow):
 		if not self.isPaused == paused:
 			self.PlayPause()
 			print('[SYNC] Toggled pause')
-	
+
 	def keyPressEvent(self, ev):
 		if ev.key() == 32:
 			self.PlayPause()
@@ -127,7 +131,7 @@ class Player(QtWidgets.QMainWindow):
 			print('fullscreen')
 			#self.mediaplayer.set_fullscreen(0 if self.mediaplayer.get_fullscreen == 1 else 1)
 			self.widget.showFullScreen()
-	
+
 	def threadStart(self):
 		# Remember when we were multithreaded?
 		# Yeah, me neither
@@ -146,7 +150,7 @@ class Player(QtWidgets.QMainWindow):
 		# In this widget, the video will be drawn
 		self.videoframe = QtWidgets.QFrame()
 		self.palette = self.videoframe.palette()
-		self.palette.setColor (QtGui.QPalette.Window, QtGui.QColor(0,0,0))
+		self.palette.setColor(QtGui.QPalette.Window, QtGui.QColor(0, 0, 0))
 		self.videoframe.setPalette(self.palette)
 		self.videoframe.setAutoFillBackground(True)
 		self.positionslider = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
@@ -166,6 +170,7 @@ class Player(QtWidgets.QMainWindow):
 		self.hbuttonbox.addWidget(self.stopbutton)
 		self.stopbutton.clicked.connect(self.Stop)
 		self.loadbutton = QtWidgets.QPushButton('Load')
+
 		def openfile():
 			print('Opening file.')
 			self.OpenFile()
@@ -195,7 +200,7 @@ class Player(QtWidgets.QMainWindow):
 
 	def PlayPause_andupdateserver(self):
 		print('[SYNC] Toggling Pause to server!')
-		r = requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID,'id': self.roomID, 'action':'time','args':{'timecode': self.mediaplayer.get_time() / 1000, 'paused': not self.isPaused}})
+		requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': self.mediaplayer.get_time() / 1000, 'paused': not self.isPaused}})
 		self.PlayPause()
 
 	def PlayPause(self):
@@ -247,7 +252,7 @@ class Player(QtWidgets.QMainWindow):
 		self.mediaplayer.set_position(self.position / 1000.0)
 		newTimecode = int(self.mediaplayer.get_time() / 1000)
 		print(f'[SYNC] NEW TIMECODE: {newTimecode}')
-		r = requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID,'id': self.roomID, 'action':'time','args':{'timecode': newTimecode, 'paused': self.isPaused}})
+		r = requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': newTimecode, 'paused': self.isPaused}})
 		if r.status_code == 200:
 			if not r.json()['response'] == 200:
 				QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, f'Server error {str(r.json()["response"])}', r.json()['err']).exec()
@@ -265,16 +270,20 @@ class Player(QtWidgets.QMainWindow):
 				# this will fix it
 				self.Stop()
 
+
 if __name__ == "__main__":
 	clientID = base64.b64encode(os.urandom(20)).decode('ascii')
 	app = QApplication(sys.argv)
 	roomChooser = RoomChooser(clientID)
 	roomChooser.show()
 	roomChooser.resize(1000, 1000)
+
+	# TODO open a file with the script?
+	# Wait, this is an abandoned project
 	#player = Player(clientID, {})
 	#player.show()
 	#player.resize(640, 480)
-	if sys.argv[1:]:
-		print(sys.argv[1])
-		player.OpenFile(sys.argv[1])
+	#if sys.argv[1:]:
+	#	print(sys.argv[1])
+	#	player.OpenFile(sys.argv[1])
 	sys.exit(app.exec_())
