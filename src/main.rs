@@ -13,8 +13,8 @@ fn main() {
 	println!("Client id is {}", client_id);
     println!("Displaying Qt GUI...");
     QApplication::init(|_| unsafe {
- 		let _roomchooser = roomchooser::RoomChooser::new();
-//		let _player = player::Player::new();
+//  		let _roomchooser = roomchooser::RoomChooser::new();
+		let _player = player::Player::new();
 		QApplication::exec()
     });
 }

@@ -1,9 +1,11 @@
-use cpp_core::{Ptr, StaticUpcast};
+use cpp_core::{Ptr, StaticUpcast, CppBox};
 use qt_core::{slot, QBox, SlotNoArgs, SlotOfInt, QObject, QTimer, QString};
-use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout};
+use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout, QFileDialog};
 use qt_gui::{QPalette, QColor, q_palette};
 // use crate::q_palette::ColorRole;
 use std::rc::Rc;
+
+use vlc::{Instance, MediaPlayer};
 
 pub struct Player {
 	widget: QBox<QWidget>,
@@ -19,7 +21,9 @@ pub struct Player {
 	exit: QBox<QPushButton>,
 	volume_slider: QBox<QSlider>,
 	v_box: QBox<QVBoxLayout>,
-	timer: QBox<QTimer>
+	timer: QBox<QTimer>,
+	media_player: MediaPlayer
+
 }
 
 impl StaticUpcast<QObject> for Player {
@@ -91,6 +95,10 @@ impl Player {
 
 			widget.show();
 
+			// VLC init
+			let vlc_instance = Instance::new().unwrap();
+			let media_player = MediaPlayer::new(&vlc_instance).unwrap();
+
 			let this = Rc::new(Self {
 				widget,
 				vframe,
@@ -105,7 +113,8 @@ impl Player {
 				exit,
 				volume_slider,
 				v_box,
-				timer
+				timer,
+				media_player
 			});
 			this.init();
 			this
@@ -160,7 +169,11 @@ impl Player {
 
 	#[slot(SlotNoArgs)]
 	unsafe fn open_file(self: &Rc<Self>) {
-
+		// holy FRICK rust
+		// QBox<QWidget> doesn't implement Copy so I can't just freaking pass the pointer all willy nilly
+		let nullptr: Ptr<QWidget> = Ptr::null();
+		let filename: CppBox<QString> = QFileDialog::get_open_file_name_4a(nullptr, &QString::from_std_str("Open File"), &QString::from_std_str("/"), &QString::from_std_str("Video files (*.mkv *.mp4 *.webm *.mov)"));
+		println!("We got {}", filename.to_std_string());
 	}
 
 	#[slot(SlotNoArgs)]

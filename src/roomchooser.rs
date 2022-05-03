@@ -33,6 +33,7 @@ impl RoomChooser {
 			create_room_button.set_text(&qs("Create Room"));
 			hthing.add_widget(&create_room_button);
 
+			// FOR DEBUGGING
 			room_list.add_item_q_string(&QString::from_std_str("bruh"));
 			
 			widget.show();
@@ -55,6 +56,7 @@ impl RoomChooser {
 
 		self.create_room_button.clicked().connect(&self.slot_on_create_room());
 		self.room_list.item_double_clicked().connect(&self.slot_on_join_room());
+		self.username_box.return_pressed().connect(&self.slot_on_create_room());
 	}
 	
 	#[slot(SlotNoArgs)]
