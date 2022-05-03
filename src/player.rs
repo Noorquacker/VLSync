@@ -5,7 +5,8 @@ use qt_gui::{QPalette, QColor, q_palette};
 // use crate::q_palette::ColorRole;
 use std::rc::Rc;
 
-use vlc::{Instance, MediaPlayer};
+use vlc::{Instance, Media, MediaPlayer};
+use libc::c_void;
 
 pub struct Player {
 	widget: QBox<QWidget>,
@@ -22,6 +23,7 @@ pub struct Player {
 	volume_slider: QBox<QSlider>,
 	v_box: QBox<QVBoxLayout>,
 	timer: QBox<QTimer>,
+	vlc_instance: Instance,
 	media_player: MediaPlayer
 
 }
@@ -39,10 +41,13 @@ impl Player {
 			let widget = QWidget::new_0a();
 
 			let vframe = QFrame::new_0a();
+			
 			let palette = vframe.palette();
 			palette.set_color_2a(q_palette::ColorRole::Window, &QColor::from_rgb_3a(0, 0, 0));
 			vframe.set_palette(palette);
 			vframe.set_auto_fill_background(true);
+			vframe.set_base_size_2a(640, 480);
+			vframe.resize_2a(640, 480);
 
 			let position_slider = QSlider::new();
 			position_slider.set_orientation(qt_core::Orientation::Horizontal);
@@ -114,6 +119,7 @@ impl Player {
 				volume_slider,
 				v_box,
 				timer,
+				vlc_instance,
 				media_player
 			});
 			this.init();
@@ -173,7 +179,38 @@ impl Player {
 		// QBox<QWidget> doesn't implement Copy so I can't just freaking pass the pointer all willy nilly
 		let nullptr: Ptr<QWidget> = Ptr::null();
 		let filename: CppBox<QString> = QFileDialog::get_open_file_name_4a(nullptr, &QString::from_std_str("Open File"), &QString::from_std_str("/"), &QString::from_std_str("Video files (*.mkv *.mp4 *.webm *.mov)"));
-		println!("We got {}", filename.to_std_string());
+		if filename.is_null() {
+			return;
+		}
+		let media = Media::new_path(&self.vlc_instance, filename.to_std_string()).unwrap();
+		self.media_player.set_media(&media);
+		media.parse();
+		let title = media.get_meta(vlc::Meta::Title).unwrap_or("VLSync".to_string());
+		self.widget.set_window_title(&QString::from_std_str(title));
+		
+		let mut win_id: Box<u32> = Box::new(std::convert::TryInto::try_into(self.vframe.win_id()).unwrap());
+		
+		// WHOA that's unsafe
+		let win_id_ptr: *mut c_void = &mut *win_id as *mut u32 as *mut c_void;
+		
+		
+		match std::env::consts::OS {
+			"linux" => {
+				self.media_player.set_xwindow(*win_id);
+			},
+			"macos" => {
+				self.media_player.set_nsobject(win_id_ptr);
+			},
+			"windows" => {
+				self.media_player.set_hwnd(win_id_ptr);
+			},
+			_ => {
+				println!("Unsupported OS {}. Defaulting to XWindow, because you're probably BSD or something", std::env::consts::OS);
+				self.media_player.set_xwindow(*win_id);
+			}
+		};
+		self.vframe.resize_2a(640, 480);
+		self.media_player.play().unwrap();
 	}
 
 	#[slot(SlotNoArgs)]
