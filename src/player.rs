@@ -1,7 +1,7 @@
 use cpp_core::{Ptr, StaticUpcast, CppBox};
 use qt_core::{slot, QBox, SlotNoArgs, SlotOfInt, QObject, QTimer, QString};
 use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout, QFileDialog};
-use qt_gui::{QPalette, QColor, q_palette};
+use qt_gui::{QColor, q_palette};
 // use crate::q_palette::ColorRole;
 use std::rc::Rc;
 
@@ -11,7 +11,6 @@ use libc::c_void;
 pub struct Player {
 	widget: QBox<QWidget>,
 	vframe: QBox<QFrame>,
-	palette: cpp_core::Ref<QPalette>, // REALLY HOPING MY GUESS IS CORRECT
 	position_slider: QBox<QSlider>,
 	h_box: QBox<QHBoxLayout>,
 	force_sync: QBox<QPushButton>,
@@ -37,17 +36,21 @@ impl StaticUpcast<QObject> for Player {
 impl Player {
 	pub fn new() -> Rc<Player> {
 		unsafe {
+		
+			// VLC init
+			let vlc_instance = Instance::new().unwrap();
+			let media_player = MediaPlayer::new(&vlc_instance).unwrap();
 			
 			let widget = QWidget::new_0a();
-
-			let vframe = QFrame::new_0a();
+			widget.set_window_title(&QString::from_std_str("VLSync-rs"));
 			
+			// In this widget, the video will be drawn
+			let vframe = QFrame::new_0a();
+			// Fill in color
 			let palette = vframe.palette();
 			palette.set_color_2a(q_palette::ColorRole::Window, &QColor::from_rgb_3a(0, 0, 0));
 			vframe.set_palette(palette);
 			vframe.set_auto_fill_background(true);
-			vframe.set_base_size_2a(640, 480);
-			vframe.resize_2a(640, 480);
 
 			let position_slider = QSlider::new();
 			position_slider.set_orientation(qt_core::Orientation::Horizontal);
@@ -80,11 +83,12 @@ impl Player {
 			let exit = QPushButton::new();
 			exit.set_text(&QString::from_std_str("Exit"));
 			h_box.add_widget_1a(&exit);
-
 			h_box.add_stretch_1a(1);
 
 			let volume_slider = QSlider::new();
+			volume_slider.set_orientation(qt_core::Orientation::Horizontal);
 			volume_slider.set_maximum(100);
+			volume_slider.set_value(100);
 			volume_slider.set_tool_tip(&QString::from_std_str("Volume"));
 			h_box.add_widget_1a(&volume_slider);
 
@@ -94,20 +98,18 @@ impl Player {
 			v_box.add_layout_1a(&h_box);
 
 			widget.set_layout(&v_box);
+			
+			// idk
+			
 
 			let timer = QTimer::new_0a();
 			timer.set_interval(200);
 
 			widget.show();
 
-			// VLC init
-			let vlc_instance = Instance::new().unwrap();
-			let media_player = MediaPlayer::new(&vlc_instance).unwrap();
-
 			let this = Rc::new(Self {
 				widget,
-				vframe,
-				palette,
+				vframe, // The frame for storing video
 				position_slider,
 				h_box,
 				force_sync,
@@ -173,6 +175,9 @@ impl Player {
 		// this should be easy whenever I do it
 	}
 
+	/// Autoplays after loading, for testing purposes
+	/// Currently, the window isn't drawn correctly.
+	/// This is likely due to the `new()` function not aligning `vframe` correctly
 	#[slot(SlotNoArgs)]
 	unsafe fn open_file(self: &Rc<Self>) {
 		// holy FRICK rust
@@ -185,8 +190,9 @@ impl Player {
 		let media = Media::new_path(&self.vlc_instance, filename.to_std_string()).unwrap();
 		self.media_player.set_media(&media);
 		media.parse();
-		let title = media.get_meta(vlc::Meta::Title).unwrap_or("VLSync".to_string());
+		let title = media.get_meta(vlc::Meta::Title).unwrap_or("VLSync-rs".to_string());
 		self.widget.set_window_title(&QString::from_std_str(title));
+		
 		
 		let mut win_id: Box<u32> = Box::new(std::convert::TryInto::try_into(self.vframe.win_id()).unwrap());
 		
@@ -209,7 +215,6 @@ impl Player {
 				self.media_player.set_xwindow(*win_id);
 			}
 		};
-		self.vframe.resize_2a(640, 480);
 		self.media_player.play().unwrap();
 	}
 
@@ -219,7 +224,12 @@ impl Player {
 
 	#[slot(SlotOfInt)]
 	unsafe fn set_volume(self: &Rc<Self>, vol: i32) {
-
+// 		self.media_player.
+		//! Apparently we cannot set volume yet
+	}
+	
+	unsafe fn keyPressEvent(self: &Rc<Self>, ev: i32) {
+		println!("{}", ev);
 	}
 
 	#[slot(SlotNoArgs)]
