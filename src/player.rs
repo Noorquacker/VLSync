@@ -2,7 +2,6 @@ use cpp_core::{Ptr, StaticUpcast, CppBox};
 use qt_core::{slot, QBox, SlotNoArgs, SlotOfInt, QObject, QTimer, QString};
 use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout, QFileDialog};
 use qt_gui::{QColor, q_palette};
-// use crate::q_palette::ColorRole;
 use std::rc::Rc;
 
 use vlc::{Instance, Media, MediaPlayer};
