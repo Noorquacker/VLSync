@@ -2,6 +2,10 @@ use cpp_core::{Ptr, StaticUpcast};
 use qt_core::{slot, QBox, SlotNoArgs, qs, QObject, QString};
 use qt_widgets::{QWidget, QVBoxLayout, QListWidget, QLineEdit, QPushButton, QListWidgetItem, SlotOfQListWidgetItem};
 use std::rc::Rc;
+// use std::cell::RefCell;
+use tokio::runtime::Runtime;
+
+#[path = "network.rs"] pub mod network;
 
 pub struct RoomChooser {
 	widget: QBox<QWidget>,
@@ -17,7 +21,7 @@ impl StaticUpcast<QObject> for RoomChooser {
 }
 
 impl RoomChooser {
-	pub fn new() -> Rc<RoomChooser> {
+	pub fn new(_con_state: Rc<network::ConnectionState>) -> Rc<RoomChooser> {
 		unsafe {
 			let widget = QWidget::new_0a();
 			let hthing = QVBoxLayout::new_1a(&widget);
@@ -33,8 +37,7 @@ impl RoomChooser {
 			create_room_button.set_text(&qs("Create Room"));
 			hthing.add_widget(&create_room_button);
 
-			// FOR DEBUGGING
-			room_list.add_item_q_string(&QString::from_std_str("bruh"));
+			
 			
 			widget.show();
 			
@@ -57,6 +60,19 @@ impl RoomChooser {
 		self.create_room_button.clicked().connect(&self.slot_on_create_room());
 		self.room_list.item_double_clicked().connect(&self.slot_on_join_room());
 		self.username_box.return_pressed().connect(&self.slot_on_create_room());
+		
+		// WHAT THE FRICK OD YOU MEAN IT ALL HAS TO BE ASYNC???
+		let rt  = Runtime::new().unwrap();
+		let mut rooms: Vec<String> = vec!();
+		rt.block_on(async {
+			let rooms_async = network::get_rooms().await.unwrap();
+			rooms = rooms_async;
+		});
+		
+		
+		for i in rooms {
+			self.room_list.add_item_q_string(&QString::from_std_str(i));
+		}
 	}
 	
 	#[slot(SlotNoArgs)]

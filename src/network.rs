@@ -1,11 +1,19 @@
 use std::rc::Rc;
 
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 use rand::Rng;
 extern crate base64;
 
 pub struct ConnectionState {
 	pub client_id: String
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RoomResponse {
+	response: i32,
+	stuff: Option<Vec<String>>,
+	rooms: Vec<String>
 }
 
 impl ConnectionState {
@@ -20,13 +28,16 @@ impl ConnectionState {
 	}
 }
 
-async fn get_rooms() -> Result<(), Box<dyn std::error::Error>> {
-	let resp = Client::new()
+/// Gets the rooms.  
+/// Will panic (for now) if the server returns a malformed response, aka if the server returns a non-500 error  
+/// Returns a String vector containing room names.
+pub async fn get_rooms() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+	let resp: RoomResponse = Client::new()
 		.get("https://mc.nqind.com/vlsync/rooms.php")
 		.send()
 		.await?
 		.json()
 		.await
 		.expect("Invalid response from server in rooms.php");
-	Ok(())
+	Ok(resp.rooms)
 }
