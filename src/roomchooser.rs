@@ -62,12 +62,8 @@ impl RoomChooser {
 		self.username_box.return_pressed().connect(&self.slot_on_create_room());
 		
 		// WHAT THE FRICK OD YOU MEAN IT ALL HAS TO BE ASYNC???
-		let rt  = Runtime::new().unwrap();
-		let mut rooms: Vec<String> = vec!();
-		rt.block_on(async {
-			let rooms_async = network::get_rooms().await.unwrap();
-			rooms = rooms_async;
-		});
+		// nvm enabled reqwest::blocking
+		let rooms: Vec<String> = network::get_rooms().unwrap();
 		
 		
 		for i in rooms {

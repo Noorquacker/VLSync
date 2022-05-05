@@ -13,7 +13,7 @@ pub struct ConnectionState {
 pub struct RoomResponse {
 	response: i32,
 	stuff: Option<Vec<String>>,
-	rooms: Vec<String>
+	rooms: Vec<Vec<Option<String>>>
 }
 
 impl ConnectionState {
@@ -31,13 +31,13 @@ impl ConnectionState {
 /// Gets the rooms.  
 /// Will panic (for now) if the server returns a malformed response, aka if the server returns a non-500 error  
 /// Returns a String vector containing room names.
-pub async fn get_rooms() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-	let resp: RoomResponse = Client::new()
-		.get("https://mc.nqind.com/vlsync/rooms.php")
-		.send()
-		.await?
+pub fn get_rooms() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+	let resp: RoomResponse = reqwest::blocking::get("https://mc.nqind.com/vlsync/rooms.php")?
 		.json()
-		.await
 		.expect("Invalid response from server in rooms.php");
-	Ok(resp.rooms)
+	let mut rooms: Vec<String> = vec![];
+	for i in resp.rooms.iter() {
+		rooms.push(i[0].as_ref().unwrap_or(&"Unnamed".to_string()).clone());
+	}
+	Ok(rooms)
 }
