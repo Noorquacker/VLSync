@@ -4,7 +4,7 @@ use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVB
 use qt_gui::{QColor, q_palette};
 use std::rc::Rc;
 
-use vlc::{Instance, Media, MediaPlayer};
+use vlc::{Instance, Media, MediaPlayer, MediaPlayerAudioEx, MediaPlayerVideoEx};
 use libc::c_void;
 
 pub struct Player {
@@ -166,6 +166,9 @@ impl Player {
 
 	#[slot(SlotNoArgs)]
 	unsafe fn play_update(self: &Rc<Self>) {
+		// TESTING
+		println!("hey why tf fullscreen no work ;-;");
+		self.media_player.set_fullscreen(!self.media_player.get_fullscreen());
 		// TODO PlayPause_andupdateserver
 	}
 
@@ -215,6 +218,7 @@ impl Player {
 			}
 		};
 		self.media_player.play().unwrap();
+		self.media_player.set_fullscreen(true);
 	}
 
 	#[slot(SlotNoArgs)]
@@ -223,8 +227,19 @@ impl Player {
 
 	#[slot(SlotOfInt)]
 	unsafe fn set_volume(self: &Rc<Self>, vol: i32) {
-// 		self.media_player.
-		//! Apparently we cannot set volume yet
+		//! ~~Apparently we cannot set volume yet~~
+		//!
+		//! We can set volume! Since this is a non-essential feature, this will only print a warning to stdout on failure.
+		//!
+		//! We don't know what would make libVLC fail to set volume though, so start taking guesses
+		
+		self.media_player.set_volume(vol).unwrap_or_else(|_| {
+			println!("[WARN] Failed to set volume! Is libVLC okay?");
+		});
+		
+		// TESTING UNSAFE LIBVLC FEATURE IDK I MIGHT OPEN A PULL REQUEST LATER
+		// HEY THAT SOUNDS LIKE A COOL IDEA HOW BOUT I SPAM TODO TODO TODO TODO TODO TODO
+		vlc::sys::libvlc_audio_set_delay(self.media_player.raw(), 500);
 	}
 	
 	unsafe fn keyPressEvent(self: &Rc<Self>, ev: i32) {

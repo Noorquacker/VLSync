@@ -12,8 +12,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	println!("Client id is {}", con_state.client_id);
     println!("Displaying Qt GUI...");
     QApplication::init(|_| unsafe {
- 		let _roomchooser = roomchooser::RoomChooser::new(con_state);
-// 		let _player = player::Player::new();
+//  		let _roomchooser = roomchooser::RoomChooser::new(con_state);
+		let _player = player::Player::new();
 		QApplication::exec()
     });
 }
