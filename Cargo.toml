@@ -20,6 +20,7 @@ qt_ui_tools = "0.5.0"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 tokio = { version = "1", features = ["full"] }
 serde = {version = "1.0.130", features = ["derive"]}
+serde_json = "1.0.81"
 # literally just client id lmao
 base64 = "0.13.0"
 rand = "0.8.4"

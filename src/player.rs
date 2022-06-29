@@ -192,7 +192,7 @@ impl Player {
 		let media = Media::new_path(&self.vlc_instance, filename.to_std_string()).unwrap();
 		self.media_player.set_media(&media);
 		media.parse();
-		let title = media.get_meta(vlc::Meta::Title).unwrap_or("VLSync-rs".to_string());
+		let title = format!("VLSync-rs - {}", media.get_meta(vlc::Meta::Title).unwrap_or("No title".to_string()));
 		self.widget.set_window_title(&QString::from_std_str(title));
 		
 		
@@ -232,6 +232,8 @@ impl Player {
 		//! We can set volume! Since this is a non-essential feature, this will only print a warning to stdout on failure.
 		//!
 		//! We don't know what would make libVLC fail to set volume though, so start taking guesses
+		//! 
+		//! This function also tries to set the audio delay, but it's broken or something
 		
 		self.media_player.set_volume(vol).unwrap_or_else(|_| {
 			println!("[WARN] Failed to set volume! Is libVLC okay?");
@@ -239,7 +241,8 @@ impl Player {
 		
 		// TESTING UNSAFE LIBVLC FEATURE IDK I MIGHT OPEN A PULL REQUEST LATER
 		// HEY THAT SOUNDS LIKE A COOL IDEA HOW BOUT I SPAM TODO TODO TODO TODO TODO TODO
-		vlc::sys::libvlc_audio_set_delay(self.media_player.raw(), 500);
+		
+		vlc::sys::libvlc_audio_set_delay(self.media_player.raw(), -5000);
 	}
 	
 	unsafe fn keyPressEvent(self: &Rc<Self>, ev: i32) {
