@@ -1,0 +1,19 @@
+<?php
+$mysqli = new mysqli('127.0.0.1 or whatever your MySQL server IP is', 'YOUR_ACCOUNT_NAME', 'YOUR_ACCOUNT_PASSWORD', 'YOUR_DATABASE_NAME');
+if($mysqli->connect_errno) {
+	header('Content-Type: application/json');
+	echo json_encode(array('response' => 500, 'err' => $mysqli->connect_error));
+	die();
+}
+
+function use_json() {
+	header('Content-Type: application/json');
+	$req = json_decode(file_get_contents('php://input'), true);
+	if($req === null) {
+		$resp = array('response' => 400, 'err' => 'Invalid JSON POST body');
+		echo json_encode($resp);
+		die();
+	}
+	return $req;
+}
+?>
