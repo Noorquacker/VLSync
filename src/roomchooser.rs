@@ -2,6 +2,7 @@ use cpp_core::{Ptr, StaticUpcast};
 use qt_core::{slot, QBox, SlotNoArgs, qs, QObject, QString};
 use qt_widgets::{QWidget, QVBoxLayout, QListWidget, QLineEdit, QPushButton, QListWidgetItem, SlotOfQListWidgetItem, QMessageBox};
 use std::rc::Rc;
+use std::ops::DerefMut;
 // use std::cell::RefCell;
 // use tokio::runtime::Runtime;
 
@@ -13,8 +14,7 @@ pub struct RoomChooser {
 	room_list: QBox<QListWidget>,
 	create_room_button: QBox<QPushButton>,
 	username_box: QBox<QLineEdit>,
-	net_state: Rc<ConnectionState>,
-	rooms_listed: Vec<RoomListed>
+	net_state: Rc<ConnectionState>
 }
 
 impl StaticUpcast<QObject> for RoomChooser {
@@ -24,7 +24,7 @@ impl StaticUpcast<QObject> for RoomChooser {
 }
 
 impl RoomChooser {
-	pub fn new(_con_state: Rc<ConnectionState>) -> Rc<RoomChooser> {
+	pub fn new(net_state: Rc<ConnectionState>) -> Rc<RoomChooser> {
 		unsafe {
 			let widget = QWidget::new_0a();
 			let hthing = QVBoxLayout::new_1a(&widget);
@@ -40,10 +40,7 @@ impl RoomChooser {
 			create_room_button.set_text(&qs("Create Room"));
 			hthing.add_widget(&create_room_button);
 
-			let net_state = ConnectionState::new();
-			
-			// WHAT
-			let rooms_listed: Vec<RoomListed> = Vec::new();
+			//let net_state = ConnectionState::new();
 			
 			widget.show();
 			
@@ -52,8 +49,7 @@ impl RoomChooser {
 				room_list,
 				create_room_button,
 				username_box,
-				net_state,
-				rooms_listed
+				net_state
 			});
 			this.init();
 			this
@@ -77,6 +73,7 @@ impl RoomChooser {
 		for i in rooms {
 			self.room_list.add_item_q_string(&QString::from_std_str(i.name));
 		}
+		
 	}
 	
 	fn display_err(self: &Rc<Self>, msg: String) {
@@ -87,7 +84,7 @@ impl RoomChooser {
 	
 	/// Yes, this literally just checks if username is empty and pops a message box if it is
 	fn username_check(self: &Rc<Self>) -> bool {
-		let mut t: String;
+		let t: String;
 		unsafe {
 			t = self.username_box.text().to_std_string();
 		}
@@ -119,15 +116,25 @@ impl RoomChooser {
 		let r: String = room.text().to_std_string();
 		if self.username_check() {
 			let mut tgt: Option<RoomListed> = None;
-			for i in self.rooms_listed {
-				
+			for i in self.net_state.get_rooms().unwrap() {
+				if i.name == r {
+					tgt = Some(i.clone());
+				}
 			}
-			println!("Joining room {}", r);
-			match self.net_state.join_room(self.username_box.text().to_std_string()) {
-				Ok(r_info) => {
-				
+			match tgt {
+				Some(ref room) => {
+					println!("Joining room {}", r);
+					match self.net_state.join_room(room.id.clone(), self.username_box.text().to_std_string()) {
+						Ok(r_info) => {
+							println!("Returning r_info {:?}", r_info);
+							if r_info.response == 500 {
+								self.display_err(r_info.err.unwrap_or("No error provided".to_string()));
+							}
+						},
+						Err(e) => self.display_err(e)
+					}
 				},
-				Err(e) => self.display_err(e)
+				_ => self.display_err("No room found???".to_string())
 			}
 		}
 	}

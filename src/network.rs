@@ -20,7 +20,7 @@ pub struct RoomResponse {
 	rooms: Vec<RoomListed>
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RoomListed {
 	pub id: String,
 	pub name: String,
@@ -33,14 +33,15 @@ pub struct RoomListed {
 pub struct RoomJoin {
 	client: String,
 	id: String,
-	username: String
+	username: String,
+	password: Option<String>
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct RoomJoinSuccess {
-	response: i32,
-	users: Vec<String>,
-	err: Option<String>
+	pub response: i32,
+	pub users: Option<Vec<String>>,
+	pub err: Option<String>
 }
 
 #[derive(Deserialize, Serialize)]
@@ -89,21 +90,28 @@ impl ConnectionState {
 	
 	// TODO test this function!
 	pub fn join_room(self: &Rc<Self>, room_id: String, username: String) -> Result<RoomJoinSuccess, String> {
-		println!("Joining room ID {}", room_id);
+		println!("Joining room ID {} with client ID {}", room_id, &self.client_id);
 		let room_join = RoomJoin {
 			client: self.client_id.clone(),
 			username,
-			id: room_id // TODO TODO THIS IS NOT HOW ROOMS ACTUALLY WORK OH FRICK OH FRICK
+			id: room_id, // TODO TODO THIS IS NOT HOW ROOMS ACTUALLY WORK OH FRICK OH FRICK
+			password: None
 		};
-		let resp: RoomJoinSuccess = self.rq_client.post("https://www.nqind.com/vlsync/join.php")
+		let resp: Result<String, reqwest::Error> = self.rq_client.post("https://www.nqind.com/vlsync/join.php")
 			.json(&room_join)
 			.send()
 			.ok()
-			.expect("Could not join room")
-			.json()
-			.expect("Invalid response from server");
-		
-		Ok(resp)
+			.unwrap()
+			.text();
+		let txt = resp.unwrap();
+		return match serde_json::from_str(&txt) {
+			Ok(r) => {
+				Ok(r)
+			},
+			Err(_e) => {
+				Err(txt)
+			}
+		}
 	}
 	
 	pub fn create_room(self: &Rc<Self>, username: String) -> Result<RoomCreateSuccess, String> {
@@ -123,7 +131,7 @@ impl ConnectionState {
 			Ok(e) => e,
 			Err(e) => RoomCreateSuccess {
 				response: 400,
-				err: Some(format!("Failed to parse JSON {}", resp)),
+				err: Some(format!("Failed to parse JSON: {}", resp)),
 				id: None, name: None, owner: None, pass: None
 				
 			}
