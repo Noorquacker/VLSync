@@ -21,7 +21,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 		self.updateList()
 
 	def updateList(self):
-		a = requests.get('https://mc.nqind.com/vlsync/rooms.php')
+		a = requests.get('https://www.nqind.com/vlsync/rooms.php')
 		self.rooms = a.json()['rooms']
 		self.roomList.clear()
 		for room in self.rooms:
@@ -41,7 +41,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 			QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, 'Bruh moment', 'Enter a username, dangit').exec()
 			return
 		print(f'Joining room ID {i["id"]}')
-		a = requests.post('https://mc.nqind.com/vlsync/join.php', json={'client': self.clientID, 'id': roomID, 'username': username})
+		a = requests.post('https://www.nqind.com/vlsync/join.php', json={'client': self.clientID, 'id': roomID, 'username': username})
 		if a.json()['response'] == 200:
 			self.close()
 			player = Player(self.clientID, {'id': roomID, 'users': a.json()['users']})
@@ -55,7 +55,7 @@ class RoomChooser(QtWidgets.QMainWindow):
 		if not username:
 			QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, 'Bruh moment', 'Enter a username, dangit').exec()
 			return
-		a = requests.post('https://mc.nqind.com/vlsync/createRoom.php', json={'client': self.clientID, 'username': username})
+		a = requests.post('https://www.nqind.com/vlsync/createRoom.php', json={'client': self.clientID, 'username': username})
 		print(a.text)
 		self.roomID = a.json()['id']
 		print(f'Joining CREATED room ID {i["id"]}')
@@ -102,7 +102,7 @@ class Player(QtWidgets.QMainWindow):
 		print(time.monotonic() - self.starttime)
 
 	def sync(self, force_sync=False):
-		b = requests.post('https://mc.nqind.com/vlsync/heartbeat.php', json={'client': self.clientID, 'id': self.room['id']}).json()
+		b = requests.post('https://www.nqind.com/vlsync/heartbeat.php', json={'client': self.clientID, 'id': self.room['id']}).json()
 		a = b['room_state']
 		print(f'[SYNC] Response: {b}')
 		self.userslabel.setText(f'Users: {"".join([i + ", " for i in b["users"]])}')
@@ -200,7 +200,7 @@ class Player(QtWidgets.QMainWindow):
 
 	def PlayPause_andupdateserver(self):
 		print('[SYNC] Toggling Pause to server!')
-		requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': self.mediaplayer.get_time() / 1000, 'paused': not self.isPaused}})
+		requests.post('https://www.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': self.mediaplayer.get_time() / 1000, 'paused': not self.isPaused}})
 		self.PlayPause()
 
 	def PlayPause(self):
@@ -252,7 +252,7 @@ class Player(QtWidgets.QMainWindow):
 		self.mediaplayer.set_position(self.position / 1000.0)
 		newTimecode = int(self.mediaplayer.get_time() / 1000)
 		print(f'[SYNC] NEW TIMECODE: {newTimecode}')
-		r = requests.post('https://mc.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': newTimecode, 'paused': self.isPaused}})
+		r = requests.post('https://www.nqind.com/vlsync/manageRoom.php', json={'client': self.clientID, 'id': self.roomID, 'action': 'time', 'args': {'timecode': newTimecode, 'paused': self.isPaused}})
 		if r.status_code == 200:
 			if not r.json()['response'] == 200:
 				QtWidgets.QMessageBox(QtWidgets.QMessageBox.Icon.Critical, f'Server error {str(r.json()["response"])}', r.json()['err']).exec()

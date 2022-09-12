@@ -1,16 +1,24 @@
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+//use serde_json::from_str;
 use rand::Rng;
 extern crate base64;
 
 pub struct ConnectionState {
 	pub client_id: String, // YES WE ARE STORING THE CLIENT ID AS A BASE64 ENCODED STRING PLEASE STOP DOING client_id.to_string()
 	rq_client: Client,
-	curr_room: Option<String>,
-	in_room: bool
+	pub room_id: Option<String>,
+	pub room_state: RefCell<RoomState>
+}
+
+pub struct RoomState {
+	pub users: Vec<String>,
+	pub in_room: bool,
+	pub room_id: Option<String>,
+	pub position: i32
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -37,7 +45,7 @@ pub struct RoomJoin {
 	password: Option<String>
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RoomJoinSuccess {
 	pub response: i32,
 	pub users: Option<Vec<String>>,
@@ -50,7 +58,7 @@ pub struct RoomCreate {
 	username: String
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct RoomCreateSuccess {
 	response: i32,
 	
@@ -70,6 +78,27 @@ pub struct RoomCreateSuccess {
 	err: Option<String>
 }
 
+#[derive(Serialize)]
+pub struct HeartbeatReq {
+	client: String,
+	id: String
+}
+
+#[derive(Deserialize, Debug)]
+pub struct RoomStateHeartbeat {
+	pub timecode: i32,
+	pub paused: bool,
+	pub modified: i32,
+	pub offset: i32
+}
+
+#[derive(Deserialize, Debug)]
+pub struct HeartbeatResp {
+	pub response: i32,
+	pub users: Vec<String>,
+	pub room_state: RoomStateHeartbeat,
+}
+
 impl ConnectionState {
 	pub fn new() -> Rc<Self> {
 		let client_bytes = rand::thread_rng().gen::<[u8; 20]>();
@@ -81,8 +110,10 @@ impl ConnectionState {
 		let this = Rc::new(Self {
 			client_id,
 			rq_client,
-			curr_room: None,
-			in_room: false
+			room_id: None,
+			room_state: RefCell::new(
+				RoomState { users: Vec::new(), in_room: false, room_id: None, position: 0 }
+			),
 		});
 		this
 	}
@@ -94,7 +125,7 @@ impl ConnectionState {
 		let room_join = RoomJoin {
 			client: self.client_id.clone(),
 			username,
-			id: room_id, // TODO TODO THIS IS NOT HOW ROOMS ACTUALLY WORK OH FRICK OH FRICK
+			id: room_id.clone(), // TODO TODO THIS IS NOT HOW ROOMS ACTUALLY WORK OH FRICK OH FRICK
 			password: None
 		};
 		let resp: Result<String, reqwest::Error> = self.rq_client.post("https://www.nqind.com/vlsync/join.php")
@@ -104,8 +135,18 @@ impl ConnectionState {
 			.unwrap()
 			.text();
 		let txt = resp.unwrap();
-		return match serde_json::from_str(&txt) {
+		let a: Result<RoomJoinSuccess, serde_json::Error> = serde_json::from_str(&txt);
+		match a {
 			Ok(r) => {
+				if let Some(k) = r.clone().users {
+					let mut room_state = self.room_state.borrow_mut();
+					
+					for i in k {
+						room_state.users.push(i);
+					}
+					room_state.in_room = true;
+					room_state.room_id = Some(room_id.clone());
+				}
 				Ok(r)
 			},
 			Err(_e) => {
@@ -127,9 +168,10 @@ impl ConnectionState {
 			.text()
 			.ok()
 			.expect("Completely invalid response from server");
+		
 		let ret: RoomCreateSuccess = match serde_json::from_str(&resp) {
 			Ok(e) => e,
-			Err(e) => RoomCreateSuccess {
+			Err(_) => RoomCreateSuccess {
 				response: 400,
 				err: Some(format!("Failed to parse JSON: {}", resp)),
 				id: None, name: None, owner: None, pass: None
@@ -152,11 +194,32 @@ impl ConnectionState {
 			.send()?
 			.json()
 			.expect("Invalid response from server in rooms.php");
-// 		let mut rooms: Vec<String> = vec![];
-// 		for i in resp.rooms.iter() {
-// 			rooms.push(i.name.as_ref().unwrap_or(&"Unnamed".to_string()).clone());
-// 		}
 		Ok(resp.rooms)
+	}
+	
+	/// Heartbeat request for telling the server we're here and asking where we should be
+	pub fn heartbeat(self: &Rc<Self>) -> Result<HeartbeatResp, String>{
+		let room_state = self.room_state.borrow();
+		if let Some(room_id) = room_state.room_id.clone() {
+			let heartbeat_req = HeartbeatReq{ client: self.client_id.clone(), id: room_id.to_string() };
+			
+			let resp: Result<HeartbeatResp, _> = self.rq_client.post("https://www.nqind.com/vlsync/heartbeat.php")
+				.json(&heartbeat_req)
+				.send()
+				.ok()
+				.expect("bruh")
+				.json();
+			
+			match resp {
+				Ok(r) => Ok(r),
+				Err(e) => {
+					Err(format!("Error getting heartbeat from server: {}", e.to_string()))
+				}
+			}
+		}
+		else {
+			Err("Attempt to heartbeat with no room ID specified".to_string())
+		}
 	}
 
 }

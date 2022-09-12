@@ -1,17 +1,17 @@
 use cpp_core::{Ptr, StaticUpcast, CppBox};
 use qt_core::{slot, QBox, SlotNoArgs, SlotOfInt, QObject, QTimer, QString};
-use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout, QFileDialog};
+use qt_widgets::{QWidget, QFrame, QSlider, QHBoxLayout, QPushButton, QLabel, QVBoxLayout, QFileDialog, QMessageBox};
 use qt_gui::{QColor, q_palette};
 use std::rc::Rc;
 
 use vlc::{Instance, Media, MediaPlayer, MediaPlayerAudioEx, MediaPlayerVideoEx};
 use libc::c_void;
+use crate::network::ConnectionState;
 
 pub struct Player {
 	widget: QBox<QWidget>,
 	vframe: QBox<QFrame>,
 	position_slider: QBox<QSlider>,
-	h_box: QBox<QHBoxLayout>,
 	force_sync: QBox<QPushButton>,
 	play: QBox<QPushButton>,
 	stop: QBox<QPushButton>,
@@ -19,10 +19,11 @@ pub struct Player {
 	users_label: QBox<QLabel>,
 	exit: QBox<QPushButton>,
 	volume_slider: QBox<QSlider>,
-	v_box: QBox<QVBoxLayout>,
 	timer: QBox<QTimer>,
+	sync_timer: QBox<QTimer>,
 	vlc_instance: Instance,
-	media_player: MediaPlayer
+	media_player: MediaPlayer,
+	net_state: Rc<ConnectionState>
 
 }
 
@@ -33,15 +34,17 @@ impl StaticUpcast<QObject> for Player {
 }
 
 impl Player {
-	pub fn new() -> Rc<Player> {
+	pub fn new(net_state: Rc<ConnectionState>) -> Rc<Player> {
+		
+		println!("Initializing video player");
+		
+		// VLC init
+		let vlc_instance = Instance::new().unwrap();
+		let media_player = MediaPlayer::new(&vlc_instance).unwrap();
+		
 		unsafe {
 		
-			// VLC init
-			let vlc_instance = Instance::new().unwrap();
-			let media_player = MediaPlayer::new(&vlc_instance).unwrap();
-			
 			let widget = QWidget::new_0a();
-			widget.set_window_title(&QString::from_std_str("VLSync-rs"));
 			
 			// In this widget, the video will be drawn
 			let vframe = QFrame::new_0a();
@@ -95,22 +98,19 @@ impl Player {
 			v_box.add_widget_1a(&vframe);
 			v_box.add_widget_1a(&position_slider);
 			v_box.add_layout_1a(&h_box);
-
 			widget.set_layout(&v_box);
-			
-			// idk
-			
 
 			let timer = QTimer::new_0a();
 			timer.set_interval(200);
-
-			widget.show();
+			let sync_timer = QTimer::new_0a();
+			sync_timer.set_interval(500);
+			
+			// Do not show the widget! RoomChooser tells the widget to show itself
 
 			let this = Rc::new(Self {
 				widget,
 				vframe, // The frame for storing video
 				position_slider,
-				h_box,
 				force_sync,
 				play,
 				stop,
@@ -118,10 +118,11 @@ impl Player {
 				users_label,
 				exit,
 				volume_slider,
-				v_box,
 				timer,
+				sync_timer,
 				vlc_instance,
-				media_player
+				media_player,
+				net_state
 			});
 			this.init();
 			this
@@ -129,6 +130,9 @@ impl Player {
 	}
 
 	unsafe fn init(self: &Rc<Self>) {
+		
+		println!("Connecting slots");
+		
 		self.position_slider.slider_moved().connect(&self.slot_mark_position());
 		self.position_slider.slider_released().connect(&self.slot_set_position());
 
@@ -141,27 +145,78 @@ impl Player {
 		self.volume_slider.value_changed().connect(&self.slot_set_volume());
 
 		self.timer.timeout().connect(&self.slot_update_ui());
-
+		self.sync_timer.timeout().connect(&self.slot_soft_sync());
+	}
+	
+	/// When you actually want to make the player start, use this
+	pub fn start(self: &Rc<Self>) {
+		let net_state = self.net_state.room_state.borrow();
+		println!("Starting player");
+		println!("Users: {:?}, in_room: {}", net_state.users, net_state.in_room);
+		let mut users_text: String = "Users: ".to_string();
+		// cursed
+		net_state.users.clone().into_iter().map(|e| {users_text += &(e + ", ")}).for_each(drop);
+		users_text.truncate(users_text.len() - 3);
+		unsafe {
+			self.users_label.set_text(&QString::from_std_str(&users_text));
+			self.sync_timer.start_0a();
+			self.timer.start_0a();
+			self.widget.show();
+		}
+	}
+	
+	fn display_err(self: &Rc<Self>, msg: String) {
+		unsafe {
+			QMessageBox::from_icon2_q_string(qt_widgets::q_message_box::Icon::Critical, &QString::from_std_str("Internal error"), &QString::from_std_str(msg)).exec();
+		}
 	}
 
+	/// DEPRECATED
 	#[slot(SlotOfInt)]
-	unsafe fn mark_position(self: &Rc<Self>, pos: i32) {
-		// TODO idfk
+	unsafe fn mark_position(self: &Rc<Self>, _pos: i32) {
+		//! Wait why is this needed?
 	}
 
 	#[slot(SlotNoArgs)]
 	unsafe fn set_position(self: &Rc<Self>) {
-		// TODO ACTUAL NETWORKING CRAP
+		let self_pos: i32 = self.position_slider.value();
+		println!("moving to {}", self_pos);
+		{
+			let mut room_state = self.net_state.room_state.borrow_mut();
+			let pos = (self_pos as f32) / 1000.0;
+			room_state.position = self_pos;
+			self.media_player.set_position(pos);
+		}
+		self.hard_sync();
 	}
 
-	// Force a sync
+	/// Force a sync
 	#[slot(SlotNoArgs)]
 	unsafe fn hard_sync(self: &Rc<Self>) {
 		self.sync(true);
 	}
+	
+	/// Don't force a sync unless we're outside a specified threshold. For passive syncing
+	#[slot(SlotNoArgs)]
+	unsafe fn soft_sync(self: &Rc<Self>) {
+		self.sync(false);
+	}
 
-	fn sync(self: &Rc<Self>, force_sync: bool) {
-		// TODO Player.sync
+	fn sync(self: &Rc<Self>, _force_sync: bool) {
+		//println!("[SYNC] Getting sync status from server");
+		let heartbeat = self.net_state.heartbeat();
+		match heartbeat {
+			Ok(h) => {
+				println!("[SYNC] Heartbeat: {:?}", h);
+				let mut room_state = self.net_state.room_state.borrow_mut();
+				room_state.users = h.users.clone();
+				room_state.
+			},
+			Err(e) => {
+				self.display_err(e);
+			}
+		}
+		
 	}
 
 	#[slot(SlotNoArgs)]
@@ -182,6 +237,7 @@ impl Player {
 	/// This is likely due to the `new()` function not aligning `vframe` correctly
 	#[slot(SlotNoArgs)]
 	unsafe fn open_file(self: &Rc<Self>) {
+		println!("Opening file");
 		// holy FRICK rust
 		// QBox<QWidget> doesn't implement Copy so I can't just freaking pass the pointer all willy nilly
 		let nullptr: Ptr<QWidget> = Ptr::null();
@@ -223,6 +279,10 @@ impl Player {
 
 	#[slot(SlotNoArgs)]
 	unsafe fn close_all(self: &Rc<Self>) {
+		println!("Exiting due to exit button");
+		self.media_player.stop();
+		self.timer.stop();
+		self.widget.close();
 	}
 
 	#[slot(SlotOfInt)]
@@ -238,22 +298,23 @@ impl Player {
 		self.media_player.set_volume(vol).unwrap_or_else(|_| {
 			println!("[WARN] Failed to set volume! Is libVLC okay?");
 		});
-		
-		// TESTING UNSAFE LIBVLC FEATURE IDK I MIGHT OPEN A PULL REQUEST LATER
-		// HEY THAT SOUNDS LIKE A COOL IDEA HOW BOUT I SPAM TODO TODO TODO TODO TODO TODO
-		
 		vlc::sys::libvlc_audio_set_delay(self.media_player.raw(), -5000);
 	}
 	
-	unsafe fn keyPressEvent(self: &Rc<Self>, ev: i32) {
-		println!("{}", ev);
-	}
+	//unsafe fn keyPressEvent(self: &Rc<Self>, ev: i32) {
+		//println!("{}", ev);
+	//}
 
 	#[slot(SlotNoArgs)]
 	unsafe fn update_ui(self: &Rc<Self>) {
 		if !self.position_slider.is_slider_down() {
-			self.position_slider.set_value(0); // TODO convert from python `self.mediaplayer.get_position() * 1000`
+			if let Some(x) = self.media_player.get_position() {
+				self.position_slider.set_value((x * 1000.0) as i32);
+			}
 		}
-		// TODO AAAAAA MEDIA PLAYER STUFF
+		
+		if !self.media_player.is_playing() {
+			self.timer.stop();
+		}
 	}
 }

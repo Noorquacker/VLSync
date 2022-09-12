@@ -2,19 +2,17 @@ use cpp_core::{Ptr, StaticUpcast};
 use qt_core::{slot, QBox, SlotNoArgs, qs, QObject, QString};
 use qt_widgets::{QWidget, QVBoxLayout, QListWidget, QLineEdit, QPushButton, QListWidgetItem, SlotOfQListWidgetItem, QMessageBox};
 use std::rc::Rc;
-use std::ops::DerefMut;
-// use std::cell::RefCell;
-// use tokio::runtime::Runtime;
 
-#[path = "network.rs"] pub mod network;
-use network::{RoomListed, RoomJoinSuccess, RoomCreateSuccess, ConnectionState};
+use crate::network::{RoomListed, ConnectionState};
+use crate::player::Player;
 
 pub struct RoomChooser {
 	widget: QBox<QWidget>,
 	room_list: QBox<QListWidget>,
 	create_room_button: QBox<QPushButton>,
 	username_box: QBox<QLineEdit>,
-	net_state: Rc<ConnectionState>
+	net_state: Rc<ConnectionState>,
+	player: Rc<Player>
 }
 
 impl StaticUpcast<QObject> for RoomChooser {
@@ -24,9 +22,10 @@ impl StaticUpcast<QObject> for RoomChooser {
 }
 
 impl RoomChooser {
-	pub fn new(net_state: Rc<ConnectionState>) -> Rc<RoomChooser> {
+	pub fn new(net_state: Rc<ConnectionState>, player: Rc<Player>) -> Rc<RoomChooser> {
 		unsafe {
 			let widget = QWidget::new_0a();
+			widget.set_window_title(&QString::from_std_str("VLSync-rs"));
 			let hthing = QVBoxLayout::new_1a(&widget);
 			
 			let room_list = QListWidget::new_0a();
@@ -39,8 +38,6 @@ impl RoomChooser {
 			let create_room_button = QPushButton::new();
 			create_room_button.set_text(&qs("Create Room"));
 			hthing.add_widget(&create_room_button);
-
-			//let net_state = ConnectionState::new();
 			
 			widget.show();
 			
@@ -49,7 +46,8 @@ impl RoomChooser {
 				room_list,
 				create_room_button,
 				username_box,
-				net_state
+				net_state,
+				player
 			});
 			this.init();
 			this
@@ -103,7 +101,9 @@ impl RoomChooser {
 			println!("Creating and joining room {}", str);
 			match self.net_state.create_room(self.username_box.text().to_std_string()) {
 				Ok(r_info) => {
-					println!("Successfully made room {}", r_info.id.expect("bruh"));
+					println!("Successfully made room {}", r_info.id.expect("server did not return room ID"));
+					self.widget.close();
+					self.player.start();
 				},
 				Err(e) => self.display_err(e)
 			}
@@ -129,6 +129,12 @@ impl RoomChooser {
 							println!("Returning r_info {:?}", r_info);
 							if r_info.response == 500 {
 								self.display_err(r_info.err.unwrap_or("No error provided".to_string()));
+							}
+							else {
+								println!("Closing RoomChooser");
+								self.widget.close();
+								println!("Showing Player");
+								self.player.start();
 							}
 						},
 						Err(e) => self.display_err(e)
