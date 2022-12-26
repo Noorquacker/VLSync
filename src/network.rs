@@ -10,7 +10,6 @@ extern crate base64;
 pub struct ConnectionState {
 	pub client_id: String, // YES WE ARE STORING THE CLIENT ID AS A BASE64 ENCODED STRING PLEASE STOP DOING client_id.to_string()
 	rq_client: Client,
-	pub room_id: Option<String>,
 	pub room_state: RefCell<RoomState>
 }
 
@@ -110,7 +109,6 @@ impl ConnectionState {
 		let this = Rc::new(Self {
 			client_id,
 			rq_client,
-			room_id: None,
 			room_state: RefCell::new(
 				RoomState { users: Vec::new(), in_room: false, room_id: None, position: 0 }
 			),
@@ -179,6 +177,11 @@ impl ConnectionState {
 			}
 		};
 		
+		let mut room_state = self.room_state.borrow_mut();
+		
+		room_state.in_room = true;
+		room_state.room_id = Some(ret.id.expect("Room was created, but no room ID was provided?").to_string());
+		
 		if ret.response == 400 {
 			return Err(ret.err.unwrap_or("No error provided".to_string()));
 		}
@@ -201,7 +204,10 @@ impl ConnectionState {
 	pub fn heartbeat(self: &Rc<Self>) -> Result<HeartbeatResp, String>{
 		let room_state = self.room_state.borrow();
 		if let Some(room_id) = room_state.room_id.clone() {
-			let heartbeat_req = HeartbeatReq{ client: self.client_id.clone(), id: room_id.to_string() };
+			let heartbeat_req = HeartbeatReq { 
+				client: self.client_id.clone(),
+				id: room_id.to_string()
+			};
 			
 			let resp: Result<HeartbeatResp, _> = self.rq_client.post("https://www.nqind.com/vlsync/heartbeat.php")
 				.json(&heartbeat_req)

@@ -210,7 +210,7 @@ impl Player {
 				println!("[SYNC] Heartbeat: {:?}", h);
 				let mut room_state = self.net_state.room_state.borrow_mut();
 				room_state.users = h.users.clone();
-				room_state.
+				//room_state. //TODO TODO TODO TODO TODO TODO TODO
 			},
 			Err(e) => {
 				self.display_err(e);
